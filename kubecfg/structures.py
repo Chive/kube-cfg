@@ -27,8 +27,10 @@ class Stack(object):
             for item_type, item in component.serialize():
                 fname = '-'.join((self.name, component_name, item_type))
                 fpath = '{}/{}.json'.format(target_directory, fname)
-                with open(fpath, 'w') as f:
-                    json.dump(item, f, indent=2, sort_keys=True)
+                with open(fpath, 'w') as fout:
+                    json.dump(item, fout, indent=2, sort_keys=True)
+                    fout.write('\n')
+
 
 
 class Component(object):
@@ -85,8 +87,8 @@ class BaseStructure(object):
             'metadata': {
                 'name': self.name,
                 'labels': {
-                    'component': self.name,
                     'stack': self.stack,
+                    'component': self.name,
                 }
             }
         }
@@ -121,8 +123,8 @@ class ReplicationController(BaseStructure):
                 'containers': [i.serialize() for i in self.containers.values()]
             }
         }
-        data['spec']['template']['metadata']['labels']['component'] = self.name
         data['spec']['template']['metadata']['labels']['stack'] = self.stack
+        data['spec']['template']['metadata']['labels']['component'] = self.name
         return data
 
 
