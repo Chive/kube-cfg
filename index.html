@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>kube-cfg by Chive</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">kube-cfg</h1>
+      <h2 class="project-tagline">Define Kubernetes Stacks through Python</h2>
+      <a href="https://github.com/Chive/kubecfg" class="btn">View on GitHub</a>
+      <a href="https://github.com/Chive/kubecfg/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/Chive/kubecfg/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="kube-cfg" class="anchor" href="#kube-cfg" aria-hidden="true"><span class="octicon octicon-link"></span></a>kube-cfg</h1>
+
+<blockquote>
+<p><strong>Warning:</strong> this is experimental / pre alpha code!</p>
+</blockquote>
+
+<h2>
+<a id="usage" class="anchor" href="#usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Usage</h2>
+
+<h3>
+<a id="define-your-stack" class="anchor" href="#define-your-stack" aria-hidden="true"><span class="octicon octicon-link"></span></a>Define your stack</h3>
+
+<div class="highlight highlight-python"><pre><span class="pl-k">from</span> kubecfg.structures <span class="pl-k">import</span> Stack, Container, Port
+
+stack <span class="pl-k">=</span> Stack(<span class="pl-smi">name</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>example<span class="pl-pds">'</span></span>)
+
+web <span class="pl-k">=</span> stack.create_component(<span class="pl-smi">name</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>web<span class="pl-pds">'</span></span>)
+web.add_controller(
+    <span class="pl-smi">replicas</span><span class="pl-k">=</span><span class="pl-c1">1</span>,
+    <span class="pl-smi">containers</span><span class="pl-k">=</span>[
+        Container(
+            <span class="pl-smi">name</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>nginx<span class="pl-pds">'</span></span>,
+            <span class="pl-smi">image</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>nginx<span class="pl-pds">'</span></span>,
+            <span class="pl-smi">ports</span><span class="pl-k">=</span>[<span class="pl-c1">8000</span>],
+        ),
+        Container(
+            <span class="pl-smi">name</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>redis<span class="pl-pds">'</span></span>,
+            <span class="pl-smi">image</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>redis<span class="pl-pds">'</span></span>,
+        ),
+    ],
+)
+
+web.add_service(
+    <span class="pl-smi">service_type</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>LoadBalancer<span class="pl-pds">'</span></span>,
+    <span class="pl-smi">controller</span><span class="pl-k">=</span>web.controller,
+    <span class="pl-smi">ports</span><span class="pl-k">=</span>[Port(<span class="pl-smi">port</span><span class="pl-k">=</span><span class="pl-c1">80</span>, <span class="pl-smi">target_port</span><span class="pl-k">=</span><span class="pl-c1">8000</span>, <span class="pl-smi">protocol</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>TCP<span class="pl-pds">'</span></span>)],
+)
+
+stack.save(<span class="pl-s"><span class="pl-pds">'</span>out<span class="pl-pds">'</span></span>)</pre></div>
+
+<h3>
+<a id="execute-kubecfg" class="anchor" href="#execute-kubecfg" aria-hidden="true"><span class="octicon octicon-link"></span></a>Execute <code>kubecfg</code>
+</h3>
+
+<div class="highlight highlight-bash"><pre>$ python definition.py
+$ ls out
+example-web-controller.json  example-web-service.json</pre></div>
+
+<h3>
+<a id="view-output-and-use-with-kubectl" class="anchor" href="#view-output-and-use-with-kubectl" aria-hidden="true"><span class="octicon octicon-link"></span></a>View output and use with <code>kubectl</code>
+</h3>
+
+<h4>
+<a id="controller" class="anchor" href="#controller" aria-hidden="true"><span class="octicon octicon-link"></span></a>Controller</h4>
+
+<blockquote>
+<p><a href="https://github.com/Chive/kubecfg/blob/master/docs/example/out/example-web-controller.json"><code>out/example-web-controller.json</code></a></p>
+</blockquote>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>apiVersion<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>v1<span class="pl-pds">"</span></span>, 
+  <span class="pl-s"><span class="pl-pds">"</span>kind<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>ReplicationController<span class="pl-pds">"</span></span>, 
+  <span class="pl-s"><span class="pl-pds">"</span>metadata<span class="pl-pds">"</span></span>: {
+    <span class="pl-s"><span class="pl-pds">"</span>labels<span class="pl-pds">"</span></span>: {
+      <span class="pl-s"><span class="pl-pds">"</span>component<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>web<span class="pl-pds">"</span></span>, 
+      <span class="pl-s"><span class="pl-pds">"</span>stack<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>example<span class="pl-pds">"</span></span>
+    }, 
+    <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>web<span class="pl-pds">"</span></span>
+  }, 
+  <span class="pl-s"><span class="pl-pds">"</span>spec<span class="pl-pds">"</span></span>: {
+    <span class="pl-s"><span class="pl-pds">"</span>replicas<span class="pl-pds">"</span></span>: <span class="pl-c1">1</span>, 
+    <span class="pl-s"><span class="pl-pds">"</span>template<span class="pl-pds">"</span></span>: {
+      <span class="pl-s"><span class="pl-pds">"</span>metadata<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>labels<span class="pl-pds">"</span></span>: {
+          <span class="pl-s"><span class="pl-pds">"</span>component<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>web<span class="pl-pds">"</span></span>, 
+          <span class="pl-s"><span class="pl-pds">"</span>stack<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>example<span class="pl-pds">"</span></span>
+        }, 
+        <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>web<span class="pl-pds">"</span></span>
+      }, 
+      <span class="pl-s"><span class="pl-pds">"</span>spec<span class="pl-pds">"</span></span>: {
+        <span class="pl-s"><span class="pl-pds">"</span>containers<span class="pl-pds">"</span></span>: [
+          {
+            <span class="pl-s"><span class="pl-pds">"</span>image<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>nginx<span class="pl-pds">"</span></span>, 
+            <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>nginx<span class="pl-pds">"</span></span>
+          }, 
+          {
+            <span class="pl-s"><span class="pl-pds">"</span>image<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>redis<span class="pl-pds">"</span></span>, 
+            <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>redis<span class="pl-pds">"</span></span>
+          }
+        ]
+      }
+    }
+  }
+}</pre></div>
+
+<h4>
+<a id="service" class="anchor" href="#service" aria-hidden="true"><span class="octicon octicon-link"></span></a>Service</h4>
+
+<blockquote>
+<p><a href="https://github.com/Chive/kubecfg/blob/master/docs/example/out/example-web-service.json"><code>out/example-web-service.json</code></a></p>
+</blockquote>
+
+<div class="highlight highlight-json"><pre>{
+  <span class="pl-s"><span class="pl-pds">"</span>apiVersion<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>v1<span class="pl-pds">"</span></span>, 
+  <span class="pl-s"><span class="pl-pds">"</span>kind<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>Service<span class="pl-pds">"</span></span>, 
+  <span class="pl-s"><span class="pl-pds">"</span>metadata<span class="pl-pds">"</span></span>: {
+    <span class="pl-s"><span class="pl-pds">"</span>labels<span class="pl-pds">"</span></span>: {
+      <span class="pl-s"><span class="pl-pds">"</span>component<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>web<span class="pl-pds">"</span></span>, 
+      <span class="pl-s"><span class="pl-pds">"</span>stack<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>example<span class="pl-pds">"</span></span>
+    }, 
+    <span class="pl-s"><span class="pl-pds">"</span>name<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>web<span class="pl-pds">"</span></span>
+  }, 
+  <span class="pl-s"><span class="pl-pds">"</span>spec<span class="pl-pds">"</span></span>: {
+    <span class="pl-s"><span class="pl-pds">"</span>ports<span class="pl-pds">"</span></span>: [
+      {
+        <span class="pl-s"><span class="pl-pds">"</span>port<span class="pl-pds">"</span></span>: <span class="pl-c1">80</span>, 
+        <span class="pl-s"><span class="pl-pds">"</span>protocol<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>TCP<span class="pl-pds">"</span></span>, 
+        <span class="pl-s"><span class="pl-pds">"</span>targetPort<span class="pl-pds">"</span></span>: <span class="pl-c1">8000</span>
+      }
+    ], 
+    <span class="pl-s"><span class="pl-pds">"</span>selector<span class="pl-pds">"</span></span>: {
+      <span class="pl-s"><span class="pl-pds">"</span>component<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>web<span class="pl-pds">"</span></span>, 
+      <span class="pl-s"><span class="pl-pds">"</span>stack<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>example<span class="pl-pds">"</span></span>
+    }, 
+    <span class="pl-s"><span class="pl-pds">"</span>type<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>LoadBalancer<span class="pl-pds">"</span></span>
+  }
+}</pre></div>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/Chive/kubecfg">kube-cfg</a> is maintained by <a href="https://github.com/Chive">Chive</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
