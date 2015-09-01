@@ -4,12 +4,77 @@ import json
 import os
 
 
+class Stack(object):
+    components = {}
+
+    def __init__(self, name):
+        self.name = name
+
+    def create_component(self, name):
+        if name in self.components.keys():
+            raise Exception(
+                'Component with name {} already exists'.format(name)
+            )
+
+        component = Component(stack=self.name, name=name)
+        self.components[name] = component
+        return component
+
+    def save(self, target_directory):
+        if not os.path.exists(target_directory):
+            os.makedirs(target_directory)
+        for component_name, component in self.components.items():
+            for item_type, item in component.serialize():
+                fname = '-'.join((self.name, component_name, item_type))
+                fpath = '{}/{}.json'.format(target_directory, fname)
+                with open(fpath, 'w') as f:
+                    json.dump(item, f, indent=2, sort_keys=True)
+
+
+class Component(object):
+    controller = None
+
+    def __init__(self, stack, name):
+        self.stack = stack
+        self.name = name
+        self.services = []
+
+    def add_controller(self, replicas, containers):
+        rc = ReplicationController(
+            name=self.name,
+            stack=self.stack,
+            replicas=replicas,
+            containers=containers
+        )
+        self.controller = rc
+        return rc
+
+    def add_service(self, ports, service_type, controller=None):
+        service = Service(
+            name=self.name,
+            stack=self.stack,
+            ports=ports,
+            service_type=service_type,
+            controller=controller,
+        )
+        self.services.append(service)
+        return service
+
+    def serialize(self):
+        data = []
+        if self.controller:
+            data.append(('controller', self.controller.serialize()))
+        data += [('service', s.serialize()) for s in self.services]
+        return data
+
+
 class BaseStructure(object):
     apiVersion = 'v1'
     labels = {}
     kind = None
 
-    def __init__(self, name):
+    def __init__(self, stack, name, *args, **kwargs):
+        self.stack = stack
         self.name = name
 
     def serialize(self):
@@ -20,71 +85,26 @@ class BaseStructure(object):
             'metadata': {
                 'name': self.name,
                 'labels': {
-                    'name': self.name,
+                    'component': self.name,
+                    'stack': self.stack,
                 }
             }
         }
 
         if self.labels:
-            data.setdefault('metadata', {})
-            data['metadata'].setdefault('labels', {})
             for key, value in self.labels.items():
                 data['metadata']['labels'][key] = value
-
         return data
-
-
-class Application(object):
-    def __init__(self, name, tiers):
-        self.name = name
-        self.tiers = tiers
-
-    def serialize(self):
-        return {
-            tier.name: tier.serialize()
-            for tier in self.tiers
-        }
-
-    def write(self, target_directory):
-        for tier, sections in self.serialize().items():
-            for section, components in sections.items():
-                for component_name, component_config in components.items():
-                    fname = '-'.join((self.name, tier, section, component_name))
-                    fpath = '{}/{}.json'.format(target_directory, fname)
-                    if not os.path.exists(target_directory):
-                        os.makedirs(target_directory)
-                    with open(fpath, 'w') as f:
-                        json.dump(
-                            component_config, f,
-                            indent=2, sort_keys=True
-                        )
-
-
-class Tier(object):
-    def __str__(self):
-        return self.name
-
-    def __init__(self, name):
-        self.name = name
-        self.controllers = list()
-        self.services = list()
-
-    def serialize(self):
-        return {
-            'controllers': {i.name: i.serialize() for i in self.controllers},
-            'services': {i.name: i.serialize() for i in self.services},
-        }
-
 
 
 class ReplicationController(BaseStructure):
     kind = 'ReplicationController'
 
-    def __init__(self, name, replicas, containers=None, template_labels=None):
-        super(ReplicationController, self).__init__(name)
+    def __init__(self, stack, name, replicas, containers, labels=None):
+        super(ReplicationController, self).__init__(stack, name)
         self.replicas = replicas
-        self.containers = containers or []
-        self.template_labels = template_labels or {}
+        self.containers = {c.name: c for c in containers}
+        self.labels = labels or {}
 
     def serialize(self):
         data = super(ReplicationController, self).serialize()
@@ -94,54 +114,73 @@ class ReplicationController(BaseStructure):
                 'name': self.name,
                 'labels': {
                     key: val for key, val
-                    in self.template_labels.items()
-                }
+                    in self.labels.items()
+                    }
             },
             'spec': {
-                'containers': [i.serialize() for i in self.containers]
+                'containers': [i.serialize() for i in self.containers.values()]
             }
         }
         data['spec']['template']['metadata']['labels']['component'] = self.name
+        data['spec']['template']['metadata']['labels']['stack'] = self.stack
         return data
 
 
 class Service(BaseStructure):
     kind = 'Service'
-    ports = []
-    selectors = {}
-    type = None
+
+    def __init__(self, stack, name, ports, service_type=None, controller=None,
+                 selectors=None, *args, **kwargs):
+        super(Service, self).__init__(stack, name, *args, **kwargs)
+        self.ports = ports
+        self.service_type = service_type
+        self.controller = controller
+        self.selectors = selectors
 
     def serialize(self):
         data = super(Service, self).serialize()
         if self.ports:
             data['spec'].setdefault('ports', [])
             for port in self.ports:
-                data['spec']['ports'].append({'port': port})
+                data['spec']['ports'].append(port.serialize())
+
+        if self.controller or self.selectors:
+            data['spec'].setdefault('selector', {})
+
+        if self.controller:
+            data['spec']['selector']['stack'] = self.stack
+            data['spec']['selector']['component'] = self.name
 
         if self.selectors:
-            data['spec'].setdefault('selector', {})
-            for key, val in self.selectors:
+            for key, val in self.selectors.items():
                 data['spec']['selector'][key] = val
 
-        if self.type:
-            data['type'] = self.type
+        if self.service_type:
+            data['spec']['type'] = self.service_type
 
         return data
 
 
 class Container(object):
+    command = None
+    args = None
+    image = None
+    env = None
     cpu_limit = None
     memory_limit = None
 
-    def __init__(self, name, command=None, args=None, image=None, env=None):
-        self.name = name
-        self.command = command
-        self.args = args
-        self.image = image
-        self.env = env
+    def __init__(self, defaults=None, **kwargs):
+        # TODO: env would all get overwritten
+        options = defaults.copy() if defaults else {}
+        options.update(**kwargs)
+        for key, val in options.items():
+            setattr(self, key, val)
 
     def serialize(self):
         data = {}
+        if self.command and not isinstance(self.command, (list, tuple)):
+            self.command = [self.command]
+
         for attr in ['name', 'command', 'args', 'image']:
             if getattr(self, attr, None):
                 data[attr] = getattr(self, attr)
@@ -170,3 +209,30 @@ class Container(object):
 
     def copy(self):
         return copy.deepcopy(self)
+
+
+class Port(object):
+    port = None
+    target_port = None
+    node_port = None
+    protocol = None
+
+    def __init__(self, port, target_port=None, node_port=None, protocol=None):
+        self.port = port
+        self.target_port = target_port
+        self.node_port = node_port
+        self.protocol = protocol
+
+    def serialize(self):
+        data = {'port': self.port}
+
+        if self.target_port:
+            data['targetPort'] = self.target_port
+
+        if self.node_port:
+            data['nodePort'] = self.node_port
+
+        if self.protocol:
+            data['protocol'] = self.protocol
+
+        return data
