@@ -173,7 +173,7 @@ class Container(object):
 
     def __init__(self, defaults=None, **kwargs):
         # TODO: env would all get overwritten
-        options = defaults.copy() if defaults else {}
+        options = copy.deepcopy(defaults) if defaults else {}
         options.update(**kwargs)
         for key, val in options.items():
             setattr(self, key, val)
